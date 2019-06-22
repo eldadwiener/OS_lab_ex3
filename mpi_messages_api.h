@@ -69,7 +69,7 @@ int register_mpi(void)
 
 // Description: Try to receive a message from process "rank" 
 // Return value: Success - Size of the message, Failure - -1
-int receive_mpi_message(int rank, char *message, ssize_t message_size)
+int receive_mpi_message(int rank, int timeout, char *message, ssize_t message_size)
 {
     int res;
     __asm__ (
@@ -77,18 +77,21 @@ int receive_mpi_message(int rank, char *message, ssize_t message_size)
         "pushl %%ebx;"
         "pushl %%ecx;"
         "pushl %%edx;"
+        "pushl %%esi;"
         "movl $245, %%eax;"
         "movl %1, %%ebx;"
         "movl %2, %%ecx;"
         "movl %3, %%edx;"
+        "movl %4, %%esi;"
         "int $0x80;"
         "movl %%eax,%0;"
+        "popl %%esi;"
         "popl %%edx;"
         "popl %%ecx;"
         "popl %%ebx;"
         "popl %%eax;"
         : "=m" (res)
-        :"m"(rank), "m" (message), "m" (message_size)
+        :"m"(rank),"m"(timeout), "m" (message), "m" (message_size)
     );
     // TODO: Handle post return 
     if ((unsigned long)res >= (unsigned long)(-125))
