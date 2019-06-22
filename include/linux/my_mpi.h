@@ -16,7 +16,6 @@ struct global_mpi_struct{
     int rank;
     list_t *taskMsgHead;
     task_t *tsk;
-    int waitingFor;
 };
 
 struct msg_queue_struct {
