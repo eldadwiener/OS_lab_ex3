@@ -206,6 +206,7 @@ int copyMPI(struct task_struct* p)
     p->waitingFor = -1;
     newNode->rank = p->rank;
     newNode->taskMsgHead = &(p->taskMsgHead);
+    newNode->tsk = p;
     list_add_tail( &(newNode->mylist), &g_mpi_head );
     // copy all of the messages from the parent to the child process
     list_t *pos,*n;
