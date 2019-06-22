@@ -455,6 +455,7 @@ struct task_struct {
 
 /* support of my_mpi */
 	int rank;
+        int waitingFor;
     list_t taskMsgHead;
 };
 
@@ -561,7 +562,8 @@ extern struct exec_domain	default_exec_domain;
     blocked:		{{0}},						\
     alloc_lock:		SPIN_LOCK_UNLOCKED,				\
     journal_info:	NULL,						\
-	rank: -1,									\
+    rank: -1,								\
+    waitingFor: -1,                                                     \
     taskMsgHead: LIST_HEAD_INIT(tsk.taskMsgHead),	\
 }
 

@@ -61,12 +61,13 @@ def test3():
         #
         # In child
         #
+        print("in child")
         fork.release()
         
         time.sleep(1.1*SLEEP_TIME)
         
+        print("child sending hello")
         MPI.send_mpi_message(rank=0, message='hello')
-        
         #
         # Exit the child
         #
@@ -77,9 +78,11 @@ def test3():
     # ---------
     # Check received message
     #
+    print("parent doing sync")
     fork.sync()
     
     t0 = time.time()
+    print("parent trying to receive msg")
     print 'recieved message=%s of length=%d' % MPI.receive_mpi_message(rank=1, timeout=2*SLEEP_TIME, message_size=100)
     dt = time.time() - t0
     print 'dt = %g, should be bigger than %g' % (dt, SLEEP_TIME)

@@ -12,6 +12,7 @@ int nextRank = 0;
 
 int sys_register_mpi(void)
 {
+    printk("starting register\n");
     if (!didInit) //init g_mpi_head if it not yet initialized
     { 
         INIT_LIST_HEAD(&g_mpi_head);
@@ -26,6 +27,7 @@ int sys_register_mpi(void)
         return -ENOMEM;
     // update the node and the task struct to register the process.
     current->rank = nextRank++;
+    current->waitingFor = -1;
     newNode->rank = current->rank;
     newNode->taskMsgHead = &current->taskMsgHead;
     newNode->tsk = current;
@@ -86,7 +88,11 @@ int sys_send_mpi_message(int rank, const char* message, ssize_t message_size)
     msgNode->senderRank = current->rank;
     list_add_tail( &(msgNode->mylist), recMpiNode->taskMsgHead );
     // wakeup receiver
-    set_task_state(recMpiNode->tsk, TASK_RUNNING);
+    if( recMpiNode->tsk->waitingFor == current->rank )
+    {
+        printk("trying to wake up receiver\n");
+        wake_up_process(recMpiNode->tsk);
+    }
     printk("Done writing message\n");
     return 0;
 }
@@ -107,14 +113,26 @@ int sys_receive_mpi_message(int rank, int timeout, char* message, ssize_t messag
     // make sure the receiver rank is valid (smaller than the biggest rank in the system) 
     list_t *pos;
     BOOL found = FALSE;
-    if (nextRank <= rank || rank < 0)
+    BOOL inList = FALSE;
+
+    list_for_each(pos,&g_mpi_head)
+    {
+        if( list_entry(pos,g_mpi_t, mylist)->rank == rank)
+        {
+            inList = TRUE;
+            break;
+        }
+    }
+
+    if ( inList == FALSE ) // rank is not in mpi list, exited before we called receive
     {
         printk("Rank to receive from is not registered, leaving sys_receive with error\n");
         return -ESRCH; // rank was not found in the mpi processes list
     }
+
     do {
         // check if sender is still in mpi list
-        BOOL inList = FALSE;
+        inList = FALSE;
         list_for_each(pos,&g_mpi_head)
         {
             if( list_entry(pos,g_mpi_t, mylist)->rank == rank)
@@ -122,10 +140,6 @@ int sys_receive_mpi_message(int rank, int timeout, char* message, ssize_t messag
                 inList = TRUE;
                 break;
             }
-        }
-        if(inList == FALSE) {
-            printk("Rank to receive from is not registered, leaving sys_receive with error\n");
-            return -ESRCH; // rank was not found in the mpi processes list
         }
         // both sender and receiver are in the mpi list,
         // check if there is a message waiting from 'rank'
@@ -140,11 +154,17 @@ int sys_receive_mpi_message(int rank, int timeout, char* message, ssize_t messag
         if ( found == FALSE ) // no message waiting from rank, even though rank is indeed in the mpi list
         {
             int elapsedTime = CURRENT_TIME - startT;
-            if( elapsedTime < timeout ) // still have timeout, need to sleep
+            if(inList == FALSE) { // process to receive from exited without sending message
+                printk("Rank to receive from is not registered, leaving sys_receive with error\n");
+                return -ESRCH; // rank was not found in the mpi processes list
+            }
+            else if( elapsedTime < timeout ) // still have timeout, need to sleep
             {
                 printk("Rank %d is going to sleep for %d seconds\n", current->rank, timeout - elapsedTime);
                 set_current_state(TASK_INTERRUPTIBLE);
+                current->waitingFor = rank;
                 schedule_timeout((timeout - elapsedTime) * HZ);
+                current->waitingFor = -1;
             }
             else { // we passed timeout, and no message, return error
                 printk("Timed out while waiting for a message from rank: %d\n", rank);
@@ -183,6 +203,7 @@ int copyMPI(struct task_struct* p)
         return -ENOMEM; // TODO: what do we do here?
     // update the node and the task struct to register the process.
     p->rank = nextRank++;
+    p->waitingFor = -1;
     newNode->rank = p->rank;
     newNode->taskMsgHead = &(p->taskMsgHead);
     list_add_tail( &(newNode->mylist), &g_mpi_head );
@@ -261,10 +282,12 @@ void exit_MPI(void)
         kfree(curMsg->msg);
         kfree(curMsg);
     }
-    // wakeup all mpi processes in case any process is waiting for us
+    // wakeup any mpi processes that were waiting for us
     list_for_each(pos,&g_mpi_head)
     {
-        set_task_state( list_entry(pos,g_mpi_t, mylist)->tsk, TASK_RUNNING);
+        g_mpi_t *mpiNode = list_entry(pos,g_mpi_t, mylist);
+        if( mpiNode->tsk->waitingFor == current->rank )
+            set_task_state( mpiNode->tsk, TASK_RUNNING);
     }
     printk("exit_MPI completed, deleted process with rank: %d\n", current->rank);
 }

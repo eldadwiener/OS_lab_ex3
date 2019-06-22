@@ -11,4 +11,4 @@ files_to_copy = [\
     'kernel/exit.c']
 
 for file in files_to_copy:
-    copyfile('/mnt/hgfs/shared_folder/OS_lab_ex_2/' + file, '/usr/src/linux-2.4.18-14custom/'+ file)
+    copyfile('/mnt/hgfs/shared_folder/OS_lab_ex3/' + file, '/usr/src/linux-2.4.18-14custom/'+ file)
