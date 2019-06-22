@@ -1,0 +1,18 @@
+#!/bin/sh
+module="softdog"
+device="watchdog"
+mode="a+w"
+
+# remove stale nodes
+rm -f /dev/$device
+
+# invoke insmod
+/sbin/insmod -f $1/$module.o || exit 1
+
+# Note: for some reason I need to repeat the removal of the device 
+rm -f /dev/$device
+
+mknod /dev/$device c 10 130 || exit 2
+
+# give appropriate group/permissions
+chmod $mode  /dev/$device
